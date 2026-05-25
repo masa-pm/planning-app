@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>週間プランナー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent: #FF8F00;
+  --accent-dark: #E65100;
+  --cell-h: 40px;
+  --panel-w: 168px;
+  --grid-border: #E8E8E8;
+  --time-bg: #F7F7F7;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: #F5F5F5;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.app-header {
+  background: linear-gradient(120deg, #FF8F00, #FF5722);
+  color: #fff;
+  padding: 0 12px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(255,87,34,0.4);
+  z-index: 100;
+}
+.app-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+.nav-btn {
+  background: rgba(255,255,255,0.22);
+  border: none;
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.nav-btn:hover { background: rgba(255,255,255,0.38); }
+.week-label {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 150px;
+  text-align: center;
+}
+.copy-btn {
+  background: rgba(255,255,255,0.22);
+  border: none;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.copy-btn:hover { background: rgba(255,255,255,0.38); }
+
+/* ── Layout ── */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Task Panel ── */
+.task-panel {
+  width: var(--panel-w);
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 2px solid var(--grid-border);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 4px 7px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.task-panel::-webkit-scrollbar { display: none; }
+
+.section-label {
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 10px 4px 4px;
+  margin-top: 2px;
+}
+
+.task-card {
+  border-radius: 10px;
+  cursor: grab;
+  user-select: none;
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  min-height: 48px;
+  overflow: hidden;
+  transition: transform 0.12s, box-shadow 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.task-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0,0,0,0.18);
+  z-index: 1;
+}
+.task-card:active { cursor: grabbing; }
+.task-card.selected {
+  box-shadow: 0 0 0 2.5px rgba(0,0,0,0.28), 0 4px 12px rgba(0,0,0,0.12);
+}
+.task-card.panel-drag-over {
+  outline: 2px dashed #999;
+  outline-offset: -2px;
+}
+
+.card-strip {
+  width: 5px;
+  flex-shrink: 0;
+}
+.card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 28px 8px 8px;
+}
+.card-name {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-time {
+  font-size: 9.5px;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+.card-edit {
+  opacity: 0;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  padding: 3px 4px;
+  border-radius: 5px;
+  background: rgba(0,0,0,0.1);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+.task-card:hover .card-edit { opacity: 1; }
+
+.add-task-btn {
+  width: 100%;
+  padding: 9px;
+  border-radius: 10px;
+  border: 2px dashed #DDD;
+  background: none;
+  cursor: pointer;
+  color: #BBB;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+  margin-top: 4px;
+}
+.add-task-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px 4px;
+  margin-top: 2px;
+}
+.section-header .section-label { padding: 0; margin-top: 0; }
+
+.cat-edit-btn {
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #F0F0F0;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.section-header:hover .cat-edit-btn { opacity: 1; }
+.cat-edit-btn:hover { background: #E0E0E0; }
+
+.add-cat-btn {
+  width: 100%;
+  padding: 7px;
+  border-radius: 10px;
+  border: 2px dashed #D8D8D8;
+  background: none;
+  cursor: pointer;
+  color: #AAA;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  margin-top: 10px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.add-cat-btn:hover { border-color: #607D8B; color: #607D8B; }
+
+/* ── Grid ── */
+.grid-wrapper { flex: 1; overflow: auto; scrollbar-width: thin; }
+
+.schedule-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 480px;
+}
+.schedule-table col.time-col { width: 50px; }
+
+.day-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  border: 1px solid var(--grid-border);
+  border-bottom: 3px solid var(--grid-border);
+  padding: 7px 4px;
+  text-align: center;
+}
+.day-header.sat { background: #FFFDE7; border-bottom-color: #FBC02D; }
+.day-header.sun { background: #FFF3E0; border-bottom-color: #EF6C00; }
+.day-header.today { background: #E3F2FD; border-bottom-color: #1565C0; }
+.day-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+.day-header.sat .day-name { color: #E65100; }
+.day-header.sun .day-name { color: #B71C1C; }
+.day-header.today .day-name { color: #1565C0; }
+.day-date { font-size: 10px; color: #BBB; margin-top: 1px; }
+
+.time-header {
+  position: sticky; top: 0; z-index: 21;
+  background: var(--time-bg);
+  border: 1px solid var(--grid-border);
+  border-bottom: 3px solid var(--grid-border);
+}
+
+.time-cell {
+  background: var(--time-bg);
+  border-right: 1px solid var(--grid-border);
+  border-bottom: 1px solid #F0F0F0;
+  text-align: right;
+  padding-right: 6px;
+  padding-top: 3px;
+  font-size: 9px;
+  color: #CCC;
+  vertical-align: top;
+  height: var(--cell-h);
+  white-space: nowrap;
+  user-select: none;
+}
+.time-cell.on-hour { color: #888; font-weight: 700; font-size: 10px; }
+
+.grid-cell {
+  border-right: 1px solid var(--grid-border);
+  border-bottom: 1px solid #F0F0F0;
+  height: var(--cell-h);
+  vertical-align: top;
+  cursor: pointer;
+  transition: background 0.08s;
+  position: relative;
+}
+.grid-cell.on-hour { border-bottom-color: #DCDCDC; }
+.grid-cell.sat-col { background: rgba(255,253,231,0.55); }
+.grid-cell.sun-col { background: rgba(255,243,224,0.45); }
+.grid-cell:hover:not(.occupied) { background: rgba(255,143,0,0.13); }
+.grid-cell.drag-over:not(.occupied) {
+  background: rgba(255,143,0,0.28) !important;
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* ── Placed blocks ── */
+.placed-block {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  padding: 4px 6px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: grab;
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+  overflow: hidden;
+  line-height: 1.3;
+  user-select: none;
+  position: relative;
+  transition: filter 0.1s;
+}
+.placed-block:hover { filter: brightness(0.92); }
+.placed-block:active { cursor: grabbing; }
+.placed-block.dragging { opacity: 0.3; }
+
+.block-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block-remove {
+  opacity: 0;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.12s;
+}
+.placed-block:hover .block-remove { opacity: 0.8; }
+
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  right: 4px;
+  height: 14px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resize-handle::after {
+  content: '';
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0,0,0,0.22);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.placed-block:hover .resize-handle::after { opacity: 1; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.42);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500;
+}
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 22px 24px;
+  width: 300px;
+  max-width: 92vw;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+}
+.modal-title { font-size: 15px; font-weight: 900; margin-bottom: 16px; }
+.form-label {
+  display: block;
+  font-size: 10px; font-weight: 700; color: #AAA;
+  letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.form-input {
+  width: 100%;
+  border: 1.5px solid #E4E4E4;
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 13px;
+  transition: border-color 0.15s;
+}
+.form-input:focus { border-color: var(--accent); }
+.slot-control { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.slot-btn {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 2px solid #E0E0E0;
+  background: #fff;
+  font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  transition: border-color 0.15s;
+}
+.slot-btn:hover { border-color: var(--accent); color: var(--accent); }
+.slot-display {
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px; font-weight: 900;
+  min-width: 30px; text-align: center;
+  color: var(--accent);
+}
+.slot-unit { font-size: 11px; color: #AAA; }
+.color-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.color-swatch {
+  width: 27px; height: 27px;
+  border-radius: 8px;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.color-swatch.selected { border-color: #222; transform: scale(1.18); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn { padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; }
+.btn-ghost { background: #F5F5F5; color: #555; }
+.btn-ghost:hover { background: #EBEBEB; }
+.btn-danger { background: #FFEBEE; color: #C62828; }
+.btn-danger:hover { background: #FFCDD2; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); }
+
+/* ── Hint ── */
+.hint-bar {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(40,40,40,0.9);
+  color: #fff;
+  padding: 9px 20px;
+  border-radius: 22px;
+  font-size: 12px; font-weight: 700;
+  pointer-events: none; opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 300;
+  white-space: nowrap;
+}
+.hint-bar.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-title">📅 週プラン</div>
+  <div class="week-nav">
+    <button class="nav-btn" onclick="changeWeek(-1)">◀ 前の週</button>
+    <div class="week-label" id="week-label"></div>
+    <button class="nav-btn" onclick="changeWeek(1)">次の週 ▶</button>
+  </div>
+  <button class="copy-btn" onclick="copyPrevWeek()">📋 前週コピー</button>
+</header>
+
+<div class="main">
+  <aside class="task-panel" id="task-panel"></aside>
+  <div class="grid-wrapper">
+    <table class="schedule-table" id="schedule-table">
+      <colgroup>
+        <col class="time-col">
+        <col><col><col><col><col><col><col>
+      </colgroup>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="task-modal" style="display:none" onclick="if(event.target===this)closeTaskModal()">
+  <div class="modal">
+    <div class="modal-title" id="task-modal-title">タスクを追加</div>
+    <label class="form-label">名前</label>
+    <input class="form-input" id="task-name-input" placeholder="例: 算数プリント" maxlength="12">
+    <label class="form-label">時間（1マス＝30分）</label>
+    <div class="slot-control">
+      <button class="slot-btn" onclick="adjustSlots(-1)">−</button>
+      <div class="slot-display" id="slot-display">2</div>
+      <button class="slot-btn" onclick="adjustSlots(1)">＋</button>
+      <span class="slot-unit" id="slot-unit-label"></span>
+    </div>
+    <label class="form-label">色</label>
+    <div class="color-picker" id="color-picker"></div>
+    <div class="modal-actions" id="task-modal-actions"></div>
+  </div>
+</div>
+
+<div class="hint-bar" id="hint-bar"></div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SLOT_START  = 7;
+const SLOT_END    = 22;
+const TOTAL_SLOTS = (SLOT_END - SLOT_START) * 2; // 30
+const DAY_NAMES   = ['土','日','月','火','水','木','金'];
+const CELL_H      = 40; // must match --cell-h
+
+const COLORS = [
+  '#EF5350','#EC407A','#AB47BC','#5C6BC0','#42A5F5',
+  '#26C6DA','#66BB6A','#D4E157','#FFA726','#FF7043',
+  '#8D6E63','#78909C',
+];
+
+const SUBJECTS = {
+  '算数': { color: '#EF5350', light: '#FFEBEE' },
+  '国語': { color: '#1E88E5', light: '#E3F2FD' },
+  '理科': { color: '#43A047', light: '#E8F5E9' },
+  '社会': { color: '#FB8C00', light: '#FFF3E0' },
+  '英語': { color: '#8E24AA', light: '#F3E5F5' },
+};
+
+const DEFAULT_CATEGORIES = [
+  { id: 'cat-routine', name: '毎日のこと' },
+  { id: 'cat-other',   name: 'その他' },
+];
+
+const DEFAULT_TASKS = [
+  { id:'school',      name:'学校',         color:'#B0BEC5', slots:14, system:true,  subject:null,   categoryId:null },
+  { id:'math-print',  name:'算数プリント', color:'#EF5350', slots:2,  system:false, subject:'算数', categoryId:null },
+  { id:'math-drill',  name:'計算ドリル',   color:'#EF5350', slots:1,  system:false, subject:'算数', categoryId:null },
+  { id:'math-test',   name:'テスト勉強',   color:'#EF5350', slots:3,  system:false, subject:'算数', categoryId:null },
+  { id:'jp-reading',  name:'音読',         color:'#1E88E5', slots:1,  system:false, subject:'国語', categoryId:null },
+  { id:'jp-kanji',    name:'漢字練習',     color:'#1E88E5', slots:1,  system:false, subject:'国語', categoryId:null },
+  { id:'jp-print',    name:'国語プリント', color:'#1E88E5', slots:2,  system:false, subject:'国語', categoryId:null },
+  { id:'sci-note',    name:'まとめノート', color:'#43A047', slots:2,  system:false, subject:'理科', categoryId:null },
+  { id:'sci-print',   name:'理科プリント', color:'#43A047', slots:2,  system:false, subject:'理科', categoryId:null },
+  { id:'soc-print',   name:'社会プリント', color:'#FB8C00', slots:2,  system:false, subject:'社会', categoryId:null },
+  { id:'soc-map',     name:'地図ワーク',   color:'#FB8C00', slots:1,  system:false, subject:'社会', categoryId:null },
+  { id:'eng-print',   name:'英語プリント', color:'#8E24AA', slots:2,  system:false, subject:'英語', categoryId:null },
+  { id:'eng-vocab',   name:'単語練習',     color:'#8E24AA', slots:1,  system:false, subject:'英語', categoryId:null },
+  { id:'free',  name:'自由時間', color:'#78909C', slots:2, system:false, subject:null, categoryId:'cat-routine' },
+  { id:'bath',  name:'お風呂',   color:'#4DB6AC', slots:1, system:false, subject:null, categoryId:'cat-routine' },
+  { id:'meal',  name:'食事',     color:'#AED581', slots:2, system:false, subject:null, categoryId:'cat-routine' },
+  { id:'sleep', name:'就寝準備', color:'#9FA8DA', slots:1, system:false, subject:null, categoryId:'cat-routine' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let tasks            = [];
+let categories       = [];
+let allWeeks         = {};
+let currentSat       = getSaturdayOfWeek(new Date());
+let dragTaskId       = null;
+let dragBlockId      = null;
+let dragBlockWk      = null;
+let resizeState      = null;
+let editingTask      = null;
+let editingCategoryId = null;
+let modalSlots       = 2;
+let modalColor       = COLORS[0];
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+function load() {
+  try {
+    tasks      = JSON.parse(localStorage.getItem('plan_tasks')      || 'null') || [...DEFAULT_TASKS];
+    categories = JSON.parse(localStorage.getItem('plan_categories') || 'null') || [...DEFAULT_CATEGORIES];
+    allWeeks   = JSON.parse(localStorage.getItem('plan_weeks')      || '{}');
+    // Migrate old tasks that have subject:null but no categoryId
+    const firstCatId = categories[0]?.id || 'cat-other';
+    for (const t of tasks) {
+      if (!t.system && !t.subject && !t.categoryId) t.categoryId = firstCatId;
+    }
+  } catch { tasks = [...DEFAULT_TASKS]; categories = [...DEFAULT_CATEGORIES]; allWeeks = {}; }
+}
+function save() {
+  localStorage.setItem('plan_tasks',      JSON.stringify(tasks));
+  localStorage.setItem('plan_categories', JSON.stringify(categories));
+  localStorage.setItem('plan_weeks',      JSON.stringify(allWeeks));
+}
+
+// ── Week helpers ──────────────────────────────────────────────────────────────
+function getSaturdayOfWeek(date) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - (d.getDay() + 1) % 7);
+  return d;
+}
+function weekKey(sat) { return sat.toISOString().slice(0,10); }
+function getDays(sat) {
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(sat); d.setDate(sat.getDate()+i); return d;
+  });
+}
+function getBlocks(wk) { return allWeeks[wk] || []; }
+
+function initWeek(wk) {
+  if (allWeeks[wk]) return;
+  const blocks = [];
+  for (let d = 2; d <= 6; d++)
+    blocks.push({ id: uid(), taskId: 'school', day: d, startSlot: 3 }); // 8:30
+  const dummy = [
+    { taskId:'math-print', day:0, startSlot:12 }, // 13:00
+    { taskId:'jp-kanji',   day:0, startSlot:14 }, // 14:00
+    { taskId:'math-drill', day:1, startSlot:12 }, // 13:00
+    { taskId:'jp-reading', day:1, startSlot:13 }, // 13:30
+    { taskId:'soc-print',  day:1, startSlot:14 }, // 14:00
+    { taskId:'eng-vocab',  day:2, startSlot:18 }, // 16:00
+    { taskId:'jp-print',   day:3, startSlot:18 }, // 16:00
+    { taskId:'sci-print',  day:4, startSlot:18 }, // 16:00
+    { taskId:'math-test',  day:5, startSlot:18 }, // 16:00
+    { taskId:'eng-print',  day:6, startSlot:18 }, // 16:00
+  ];
+  for (const d of dummy) blocks.push({ id: uid(), ...d });
+  allWeeks[wk] = blocks;
+  save();
+}
+
+function uid() { return Math.random().toString(36).slice(2,10); }
+
+// ── Slot helpers ──────────────────────────────────────────────────────────────
+function getEffectiveSlots(blk) {
+  if (blk.slots != null) return blk.slots;
+  return tasks.find(t => t.id === blk.taskId)?.slots ?? 1;
+}
+
+function fmtSlots(n) {
+  const m = n * 30, h = Math.floor(m/60), min = m%60;
+  if (h > 0 && min > 0) return `${h}時間${min}分`;
+  if (h > 0) return `${h}時間`;
+  return `${min}分`;
+}
+
+// ── Occupancy ─────────────────────────────────────────────────────────────────
+function buildOccupancy(wk, excludeBlockId = null) {
+  const grid = Array.from({length:7}, () => Array(TOTAL_SLOTS).fill(null));
+  for (const blk of getBlocks(wk)) {
+    if (blk.id === excludeBlockId) continue;
+    const task = tasks.find(t => t.id === blk.taskId);
+    if (!task) continue;
+    const slots = getEffectiveSlots(blk);
+    for (let s = blk.startSlot; s < blk.startSlot + slots && s < TOTAL_SLOTS; s++)
+      grid[blk.day][s] = { blk, isStart: s === blk.startSlot, task, slots };
+  }
+  return grid;
+}
+
+function canPlace(occ, day, slot, slots) {
+  if (slot + slots > TOTAL_SLOTS) return false;
+  for (let s = slot; s < slot + slots; s++) if (occ[day][s]) return false;
+  return true;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() { renderPanel(); renderGrid(); renderWeekLabel(); }
+
+function renderWeekLabel() {
+  const days = getDays(currentSat);
+  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
+  document.getElementById('week-label').textContent =
+    `${fmt(days[0])}（土）〜 ${fmt(days[6])}（金）`;
+}
+
+function renderPanel() {
+  const panel = document.getElementById('task-panel');
+  const wk = weekKey(currentSat);
+  const placedIds = new Set(getBlocks(wk).map(b => b.taskId));
+  let html = '';
+
+  // ── 教科別（課題）セクション ──
+  for (const [subj, meta] of Object.entries(SUBJECTS)) {
+    const list = tasks.filter(t => t.subject === subj && !placedIds.has(t.id));
+    if (!list.length) continue;
+    html += `<div class="section-label" style="color:${meta.color}">${subj}</div>`;
+    for (const task of list) {
+      html += taskCardHtml(task, meta.light, meta.color, meta.color);
+    }
+  }
+
+  // ── カスタムカテゴリセクション ──
+  for (const cat of categories) {
+    const list = tasks.filter(t => !t.system && !t.subject && t.categoryId === cat.id);
+    html += `<div class="section-header">
+      <span class="section-label" style="color:#607D8B;padding:0">${cat.name}</span>
+      <button class="cat-edit-btn" onclick="openCatMenu('${cat.id}')">✏️ 編集</button>
+    </div>`;
+    for (const task of list) {
+      const tc = lightOrDark(task.color) === 'light' ? '#444' : '#fff';
+      html += taskCardHtml(task, task.color, tc, 'rgba(0,0,0,0.18)');
+    }
+    html += `<button class="add-task-btn" style="margin-top:2px" onclick="openTaskModal(null,'${cat.id}')">＋ 追加</button>`;
+  }
+
+  html += `<button class="add-cat-btn" onclick="addCategory()">＋ カテゴリ追加</button>`;
+  panel.innerHTML = html;
+}
+
+function taskCardHtml(task, bg, textColor, stripColor) {
+  return `<div class="task-card" style="background:${bg}"
+    draggable="true"
+    ondragstart="onDragStart(event,'${task.id}')"
+    ondragend="onDragEnd()"
+    ondragover="onPanelDragOver(event,'${task.id}')"
+    ondragleave="onPanelDragLeave(event)"
+    ondrop="onPanelDrop(event,'${task.id}')"
+    data-taskid="${task.id}">
+    <div class="card-strip" style="background:${stripColor}"></div>
+    <div class="card-body">
+      <div class="card-name" style="color:${textColor}">${task.name}</div>
+      <div class="card-time" style="color:${textColor}">${fmtSlots(task.slots)}</div>
+    </div>
+    <button class="card-edit" onclick="event.stopPropagation();openTaskModal('${task.id}')">✏️</button>
+  </div>`;
+}
+
+function renderGrid() {
+  const wk   = weekKey(currentSat);
+  initWeek(wk);
+  const occ  = buildOccupancy(wk);
+  const days  = getDays(currentSat);
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let html = '<thead><tr><th class="time-header"></th>';
+  for (let d = 0; d < 7; d++) {
+    const dt = days[d];
+    const isToday = dt.getTime() === today.getTime();
+    const cls = ['day-header', d===0?'sat':'', d===1?'sun':'', isToday?'today':''].filter(Boolean).join(' ');
+    html += `<th class="${cls}">
+      <div class="day-name">${DAY_NAMES[d]}</div>
+      <div class="day-date">${dt.getMonth()+1}/${dt.getDate()}</div>
+    </th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  const rowspanLeft = Array(7).fill(0);
+
+  for (let s = 0; s < TOTAL_SLOTS; s++) {
+    const isHour = s % 2 === 0;
+    html += '<tr>';
+    html += `<td class="time-cell${isHour?' on-hour':''}">${isHour ? `${SLOT_START + s/2}:00` : ''}</td>`;
+
+    for (let d = 0; d < 7; d++) {
+      if (rowspanLeft[d] > 0) { rowspanLeft[d]--; continue; }
+
+      const cell = occ[d][s];
+      const colCls  = d===0 ? 'sat-col' : d===1 ? 'sun-col' : '';
+      const hourCls = isHour ? ' on-hour' : '';
+
+      if (cell && cell.isStart) {
+        const { blk, task, slots } = cell;
+        const span   = Math.min(slots, TOTAL_SLOTS - s);
+        rowspanLeft[d] = span - 1;
+        const tc     = lightOrDark(task.color) === 'light' ? '#333' : '#fff';
+        const draggable = !task.system
+          ? `draggable="true" ondragstart="onBlockDragStart(event,'${wk}','${blk.id}')" ondragend="onDragEnd()"`
+          : '';
+        const removeBtn = !task.system
+          ? `<button class="block-remove" onclick="event.stopPropagation();removeBlock('${wk}','${blk.id}')">×</button>`
+          : '';
+        const resizeHandle = !task.system
+          ? `<div class="resize-handle"
+               onmousedown="onResizeStart(event,'${wk}','${blk.id}')"
+               ontouchstart="onResizeTouchStart(event,'${wk}','${blk.id}')"></div>`
+          : '';
+        html += `<td class="grid-cell occupied ${colCls}${hourCls}" rowspan="${span}" style="padding:2px">
+          <div class="placed-block" style="background:${task.color};color:${tc}${task.system?';cursor:default':''}" ${draggable}>
+            <span class="block-name">${task.name}</span>
+            ${removeBtn}
+            ${resizeHandle}
+          </div>
+        </td>`;
+      } else {
+        html += `<td class="grid-cell ${colCls}${hourCls}"
+          ondragover="onDragOver(event)"
+          ondragleave="onDragLeave(event)"
+          ondrop="onDrop(event,${d},${s})"></td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</tbody>';
+  document.getElementById('schedule-table').innerHTML = html;
+}
+
+// ── Interaction ───────────────────────────────────────────────────────────────
+function removeBlock(wk, blockId) {
+  if (!allWeeks[wk]) return;
+  allWeeks[wk] = allWeeks[wk].filter(b => b.id !== blockId);
+  save(); renderGrid(); renderPanel();
+}
+
+// ── Drag from panel ───────────────────────────────────────────────────────────
+function onDragStart(e, taskId) {
+  dragTaskId = taskId; dragBlockId = null; dragBlockWk = null;
+  e.dataTransfer.effectAllowed = 'copy';
+  e.dataTransfer.setData('text/plain', taskId);
+}
+
+function onBlockDragStart(e, wk, blockId) {
+  dragBlockId = blockId; dragBlockWk = wk; dragTaskId = null;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', blockId);
+  e.currentTarget.classList.add('dragging');
+}
+
+function onDragEnd() {
+  dragTaskId = null; dragBlockId = null; dragBlockWk = null;
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = dragBlockId ? 'move' : 'copy';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+function onDrop(e, day, slot) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const wk = weekKey(currentSat);
+
+  if (dragBlockId) {
+    const srcBlocks = allWeeks[dragBlockWk] || [];
+    const block = srcBlocks.find(b => b.id === dragBlockId);
+    if (!block) return;
+    const task  = tasks.find(t => t.id === block.taskId);
+    if (!task) return;
+    const slots = getEffectiveSlots(block);
+    const occ   = buildOccupancy(wk, dragBlockId);
+    if (!canPlace(occ, day, slot, slots)) { showHint('⚠️ そこには置けません', true); return; }
+    allWeeks[dragBlockWk] = srcBlocks.filter(b => b.id !== dragBlockId);
+    if (!allWeeks[wk]) allWeeks[wk] = [];
+    const newBlk = { id: uid(), taskId: task.id, day, startSlot: slot };
+    if (block.slots != null) newBlk.slots = block.slots;
+    allWeeks[wk].push(newBlk);
+    save(); renderGrid(); renderPanel();
+  } else {
+    const taskId = dragTaskId || e.dataTransfer.getData('text/plain');
+    const task   = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const occ = buildOccupancy(wk);
+    if (!canPlace(occ, day, slot, task.slots)) { showHint('⚠️ そこには置けません', true); return; }
+    allWeeks[wk].push({ id: uid(), taskId: task.id, day, startSlot: slot });
+    save(); renderGrid(); renderPanel();
+  }
+}
+
+// ── Panel reorder ─────────────────────────────────────────────────────────────
+function onPanelDragOver(e, targetId) {
+  if (!dragTaskId || dragTaskId === targetId) return;
+  e.preventDefault(); e.stopPropagation();
+  document.querySelectorAll('.task-card').forEach(el => el.classList.remove('panel-drag-over'));
+  e.currentTarget.classList.add('panel-drag-over');
+}
+function onPanelDragLeave(e) { e.currentTarget.classList.remove('panel-drag-over'); }
+function onPanelDrop(e, targetId) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('panel-drag-over');
+  if (!dragTaskId || dragTaskId === targetId) return;
+  const fi = tasks.findIndex(t => t.id === dragTaskId);
+  const ti = tasks.findIndex(t => t.id === targetId);
+  if (fi === -1 || ti === -1) return;
+  const [moved] = tasks.splice(fi, 1);
+  tasks.splice(ti, 0, moved);
+  save(); renderPanel();
+}
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+function onResizeStart(e, wk, blockId) {
+  e.stopPropagation(); e.preventDefault();
+  const block = getBlocks(wk).find(b => b.id === blockId);
+  if (!block) return;
+  resizeState = { wk, blockId, origSlots: getEffectiveSlots(block), startSlot: block.startSlot, day: block.day, startY: e.clientY };
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+}
+
+function onResizeTouchStart(e, wk, blockId) {
+  e.stopPropagation();
+  const block = getBlocks(wk).find(b => b.id === blockId);
+  if (!block) return;
+  resizeState = { wk, blockId, origSlots: getEffectiveSlots(block), startSlot: block.startSlot, day: block.day, startY: e.touches[0].clientY };
+  document.addEventListener('touchmove', onResizeTouchMove, { passive: false });
+  document.addEventListener('touchend', onResizeEnd);
+}
+
+function onResizeMove(e) { if (resizeState) applyResize(e.clientY); }
+function onResizeTouchMove(e) { if (resizeState) { e.preventDefault(); applyResize(e.touches[0].clientY); } }
+
+function applyResize(clientY) {
+  const { wk, blockId, origSlots, startSlot, day, startY } = resizeState;
+  const delta = Math.round((clientY - startY) / CELL_H);
+  const occ = buildOccupancy(wk, blockId);
+  let maxAvail = 0;
+  for (let s = startSlot; s < TOTAL_SLOTS; s++) {
+    if (occ[day][s]) break;
+    maxAvail++;
+  }
+  const newSlots = Math.max(1, Math.min(maxAvail, origSlots + delta));
+  const block = getBlocks(wk).find(b => b.id === blockId);
+  if (!block || getEffectiveSlots(block) === newSlots) return;
+  block.slots = newSlots;
+  renderGrid();
+}
+
+function onResizeEnd() {
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.removeEventListener('touchmove', onResizeTouchMove);
+  document.removeEventListener('touchend', onResizeEnd);
+  if (resizeState) { save(); resizeState = null; }
+}
+
+// ── Copy previous week ────────────────────────────────────────────────────────
+function copyPrevWeek() {
+  const prevSat = new Date(currentSat);
+  prevSat.setDate(prevSat.getDate() - 7);
+  const prevBlocks = allWeeks[weekKey(prevSat)];
+  if (!prevBlocks?.length) { showHint('前の週にデータがありません', true); return; }
+
+  const toCopy = prevBlocks.filter(b => {
+    const task = tasks.find(t => t.id === b.taskId);
+    return task && !task.system;
+  });
+  if (!toCopy.length) { showHint('コピーできる課題がありません', true); return; }
+  if (!confirm(`前週の課題 ${toCopy.length}件をコピーしますか？`)) return;
+
+  const wk = weekKey(currentSat);
+  initWeek(wk);
+  const occ = buildOccupancy(wk);
+  let copied = 0;
+  for (const blk of toCopy) {
+    const task  = tasks.find(t => t.id === blk.taskId);
+    const slots = getEffectiveSlots(blk);
+    if (!canPlace(occ, blk.day, blk.startSlot, slots)) continue;
+    const newBlk = { id: uid(), taskId: blk.taskId, day: blk.day, startSlot: blk.startSlot };
+    if (blk.slots != null) newBlk.slots = blk.slots;
+    allWeeks[wk].push(newBlk);
+    for (let s = blk.startSlot; s < blk.startSlot + slots && s < TOTAL_SLOTS; s++)
+      occ[blk.day][s] = { blk: newBlk, task, slots };
+    copied++;
+  }
+  save(); render();
+  showHint(`✅ ${copied}件コピーしました`);
+}
+
+// ── Week nav ──────────────────────────────────────────────────────────────────
+function changeWeek(dir) {
+  currentSat = new Date(currentSat);
+  currentSat.setDate(currentSat.getDate() + dir * 7);
+  render();
+}
+
+// ── Category management ───────────────────────────────────────────────────────
+function addCategory() {
+  const name = prompt('カテゴリ名を入力してください');
+  if (!name?.trim()) return;
+  categories.push({ id: uid(), name: name.trim() });
+  save(); renderPanel();
+}
+
+function openCatMenu(catId) {
+  const cat = categories.find(c => c.id === catId);
+  if (!cat) return;
+  const action = prompt(
+    `「${cat.name}」\n\n「名前変更」と入力 → 名前を変更\n「削除」と入力 → カテゴリを削除\n（キャンセルで閉じる）`
+  );
+  if (action === '名前変更') {
+    const newName = prompt('新しい名前', cat.name);
+    if (!newName?.trim()) return;
+    cat.name = newName.trim();
+    save(); renderPanel();
+  } else if (action === '削除') {
+    if (categories.length <= 1) { alert('最後のカテゴリは削除できません'); return; }
+    if (!confirm(`「${cat.name}」を削除しますか？\nこのカテゴリのタスクは最初のカテゴリに移動します。`)) return;
+    const fallback = categories.find(c => c.id !== catId)?.id;
+    for (const t of tasks) { if (t.categoryId === catId) t.categoryId = fallback; }
+    categories = categories.filter(c => c.id !== catId);
+    save(); renderPanel();
+  }
+}
+
+// ── Task modal ────────────────────────────────────────────────────────────────
+function openTaskModal(taskId, catId = null) {
+  editingTask = taskId;
+  editingCategoryId = taskId
+    ? (tasks.find(t => t.id === taskId)?.categoryId ?? categories[0]?.id)
+    : (catId ?? categories[0]?.id);
+  const task = taskId ? tasks.find(t => t.id === taskId) : null;
+  document.getElementById('task-modal-title').textContent = task ? 'タスクを編集' : 'タスクを追加';
+  document.getElementById('task-name-input').value = task?.name || '';
+  modalSlots = task?.slots || 2;
+  modalColor = task?.color || COLORS[0];
+  updateSlotDisplay();
+  renderColorPicker();
+  const actions = document.getElementById('task-modal-actions');
+  actions.innerHTML = task && !task.system
+    ? `<button class="btn btn-danger" onclick="deleteTask('${taskId}')">削除</button>
+       <div style="flex:1"></div>
+       <button class="btn btn-ghost" onclick="closeTaskModal()">キャンセル</button>
+       <button class="btn btn-primary" onclick="saveTask()">保存</button>`
+    : `<button class="btn btn-ghost" onclick="closeTaskModal()">キャンセル</button>
+       <button class="btn btn-primary" onclick="saveTask()">保存</button>`;
+  document.getElementById('task-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('task-name-input').focus(), 50);
+}
+
+function closeTaskModal() { document.getElementById('task-modal').style.display = 'none'; }
+
+function adjustSlots(d) { modalSlots = Math.max(1, Math.min(12, modalSlots + d)); updateSlotDisplay(); }
+
+function updateSlotDisplay() {
+  document.getElementById('slot-display').textContent = modalSlots;
+  document.getElementById('slot-unit-label').textContent = `マス（${fmtSlots(modalSlots)}）`;
+}
+
+function renderColorPicker() {
+  document.getElementById('color-picker').innerHTML = COLORS.map(c =>
+    `<div class="color-swatch${c===modalColor?' selected':''}" style="background:${c}" onclick="selectColor('${c}')"></div>`
+  ).join('');
+}
+
+function selectColor(c) { modalColor = c; renderColorPicker(); }
+
+function saveTask() {
+  const name = document.getElementById('task-name-input').value.trim();
+  if (!name) { document.getElementById('task-name-input').focus(); return; }
+  if (editingTask) {
+    const task = tasks.find(t => t.id === editingTask);
+    if (task) { task.name = name; task.slots = modalSlots; task.color = modalColor; }
+  } else {
+    tasks.push({ id: uid(), name, color: modalColor, slots: modalSlots, system: false, subject: null, categoryId: editingCategoryId });
+  }
+  save(); closeTaskModal(); render();
+}
+
+function deleteTask(taskId) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  tasks = tasks.filter(t => t.id !== taskId);
+  for (const wk of Object.keys(allWeeks))
+    allWeeks[wk] = allWeeks[wk].filter(b => b.taskId !== taskId);
+  save(); closeTaskModal(); render();
+}
+
+// ── Hint ──────────────────────────────────────────────────────────────────────
+let _hintTimer;
+function showHint(msg, isError = false) {
+  const el = document.getElementById('hint-bar');
+  el.textContent = msg;
+  el.style.background = isError ? 'rgba(198,40,40,0.9)' : 'rgba(40,40,40,0.9)';
+  el.classList.add('visible');
+  clearTimeout(_hintTimer);
+  _hintTimer = setTimeout(() => el.classList.remove('visible'), isError ? 2000 : 3000);
+}
+function hideHint() { clearTimeout(_hintTimer); document.getElementById('hint-bar').classList.remove('visible'); }
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function lightOrDark(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return (r*299 + g*587 + b*114) / 1000 > 160 ? 'light' : 'dark';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
+</html>
