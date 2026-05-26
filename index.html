@@ -671,6 +671,20 @@ function renderPanel() {
   const placedIds = new Set(getBlocks(wk).map(b => b.taskId));
   let html = '';
 
+  // ── 固定ブロック（学校など）──
+  for (const task of tasks.filter(t => t.system)) {
+    const tc = lightOrDark(task.color) === 'light' ? '#444' : '#fff';
+    html += `<div class="section-label" style="color:#90A4AE">固定ブロック</div>
+    <div class="task-card" style="background:${task.color};cursor:default">
+      <div class="card-strip" style="background:rgba(0,0,0,0.18)"></div>
+      <div class="card-body">
+        <div class="card-name" style="color:${tc}">${task.name}</div>
+        <div class="card-time" style="color:${tc}">${fmtSlots(task.slots)}</div>
+      </div>
+      <button class="card-edit" style="opacity:1" onclick="openTaskModal('${task.id}')">✏️</button>
+    </div>`;
+  }
+
   // ── 教科別（課題）セクション ──
   for (const [subj, meta] of Object.entries(SUBJECTS)) {
     const list = tasks.filter(t => t.subject === subj && !placedIds.has(t.id));
@@ -755,22 +769,16 @@ function renderGrid() {
         const span   = Math.min(slots, TOTAL_SLOTS - s);
         rowspanLeft[d] = span - 1;
         const tc     = lightOrDark(task.color) === 'light' ? '#333' : '#fff';
-        const draggable = !task.system
-          ? `draggable="true" ondragstart="onBlockDragStart(event,'${wk}','${blk.id}')" ondragend="onDragEnd()"`
-          : '';
-        const removeBtn = !task.system
-          ? `<button class="block-remove" onclick="event.stopPropagation();removeBlock('${wk}','${blk.id}')">×</button>`
-          : '';
-        const resizeHandle = !task.system
-          ? `<div class="resize-handle"
-               onmousedown="onResizeStart(event,'${wk}','${blk.id}')"
-               ontouchstart="onResizeTouchStart(event,'${wk}','${blk.id}')"></div>`
-          : '';
         html += `<td class="grid-cell occupied ${colCls}${hourCls}" rowspan="${span}" style="padding:2px">
-          <div class="placed-block" style="background:${task.color};color:${tc}${task.system?';cursor:default':''}" ${draggable}>
+          <div class="placed-block" style="background:${task.color};color:${tc}"
+            draggable="true"
+            ondragstart="onBlockDragStart(event,'${wk}','${blk.id}')"
+            ondragend="onDragEnd()">
             <span class="block-name">${task.name}</span>
-            ${removeBtn}
-            ${resizeHandle}
+            <button class="block-remove" onclick="event.stopPropagation();removeBlock('${wk}','${blk.id}')">×</button>
+            <div class="resize-handle"
+              onmousedown="onResizeStart(event,'${wk}','${blk.id}')"
+              ontouchstart="onResizeTouchStart(event,'${wk}','${blk.id}')"></div>
           </div>
         </td>`;
       } else {
@@ -1001,7 +1009,7 @@ function openTaskModal(taskId, catId = null) {
   updateSlotDisplay();
   renderColorPicker();
   const actions = document.getElementById('task-modal-actions');
-  actions.innerHTML = task && !task.system
+  actions.innerHTML = task
     ? `<button class="btn btn-danger" onclick="deleteTask('${taskId}')">削除</button>
        <div style="flex:1"></div>
        <button class="btn btn-ghost" onclick="closeTaskModal()">キャンセル</button>
