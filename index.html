@@ -279,7 +279,7 @@ body {
 .time-cell {
   background: var(--time-bg);
   border-right: 1px solid var(--grid-border);
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #DCDCDC;
   text-align: right;
   padding-right: 6px;
   padding-top: 3px;
@@ -290,18 +290,18 @@ body {
   white-space: nowrap;
   user-select: none;
 }
-.time-cell.on-hour { color: #888; font-weight: 700; font-size: 10px; }
+.time-cell.on-hour { color: #888; font-weight: 700; font-size: 10px; border-bottom-color: #F0F0F0; }
 
 .grid-cell {
   border-right: 1px solid var(--grid-border);
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid #DCDCDC;
   height: var(--cell-h);
   vertical-align: top;
   cursor: pointer;
   transition: background 0.08s;
   position: relative;
 }
-.grid-cell.on-hour { border-bottom-color: #DCDCDC; }
+.grid-cell.on-hour { border-bottom-color: #F0F0F0; }
 .grid-cell.sat-col { background: rgba(255,253,231,0.55); }
 .grid-cell.sun-col { background: rgba(255,243,224,0.45); }
 .grid-cell:hover:not(.occupied) { background: rgba(255,143,0,0.13); }
