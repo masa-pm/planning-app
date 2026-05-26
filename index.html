@@ -675,13 +675,17 @@ function renderPanel() {
   for (const task of tasks.filter(t => t.system)) {
     const tc = lightOrDark(task.color) === 'light' ? '#444' : '#fff';
     html += `<div class="section-label" style="color:#90A4AE">固定ブロック</div>
-    <div class="task-card" style="background:${task.color};cursor:default">
+    <div class="task-card" style="background:${task.color}"
+      draggable="true"
+      ondragstart="onDragStart(event,'${task.id}')"
+      ondragend="onDragEnd()"
+      data-taskid="${task.id}">
       <div class="card-strip" style="background:rgba(0,0,0,0.18)"></div>
       <div class="card-body">
         <div class="card-name" style="color:${tc}">${task.name}</div>
         <div class="card-time" style="color:${tc}">${fmtSlots(task.slots)}</div>
       </div>
-      <button class="card-edit" style="opacity:1" onclick="openTaskModal('${task.id}')">✏️</button>
+      <button class="card-edit" onclick="event.stopPropagation();openTaskModal('${task.id}')">✏️</button>
     </div>`;
   }
 
