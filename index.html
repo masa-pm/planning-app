@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>週間プランナー</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#FF8F00">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="週プラン">
+<link rel="apple-touch-icon" href="./icon-192.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
 <!-- Firebase -->
@@ -586,6 +593,16 @@ body {
       </div>
       <p style="font-size:11px;color:#999;margin-top:6px">※ 適用するとこのIDのデータに切り替わります</p>
     </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
+      <label class="form-label">開始時刻の通知</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="notif-toggle" style="width:18px;height:18px;cursor:pointer" onchange="toggleNotification(this.checked)">
+          <span style="font-size:13px">ブロックの開始時刻に通知する</span>
+        </label>
+      </div>
+      <p style="font-size:11px;color:#999;margin-top:6px" id="notif-status-text"></p>
+    </div>
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn btn-ghost" onclick="closeSettings()">閉じる</button>
     </div>
@@ -731,12 +748,6 @@ async function fsWrite() {
 }
 
 // ── Settings modal ────────────────────────────────────────────────────────────
-function openSettings() {
-  document.getElementById('share-id-display').textContent = shareId || '（生成中）';
-  document.getElementById('share-id-input').value = '';
-  setSyncStatus(_syncOk);
-  document.getElementById('settings-modal').style.display = 'flex';
-}
 function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 
 function copyShareId() {
@@ -799,6 +810,7 @@ function save() {
   localStorage.setItem('plan_categories', JSON.stringify(categories));
   localStorage.setItem('plan_weeks',      JSON.stringify(allWeeks));
   scheduleFsWrite();
+  scheduleNotifications();
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
@@ -1302,9 +1314,109 @@ function lightOrDark(hex) {
   return (r*299 + g*587 + b*114) / 1000 > 160 ? 'light' : 'dark';
 }
 
+// ── Service Worker & 通知 ──────────────────────────────────────────────────────
+let _swReg = null;
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    _swReg = await navigator.serviceWorker.register('./sw.js');
+  } catch(e) { console.warn('[SW] registration failed:', e); }
+}
+
+function scheduleNotifications() {
+  if (Notification.permission !== 'granted') return;
+  if (!localStorage.getItem('plan_notif_enabled')) return;
+
+  const now         = new Date();
+  const todaySat    = getSaturdayOfWeek(now);
+  const wk          = weekKey(todaySat);
+  const blocks      = getBlocks(wk);
+  const todayDayIdx = (now.getDay() + 1) % 7; // 土=0, 日=1, 月=2 ...
+
+  const items = [];
+  for (const blk of blocks) {
+    if (blk.day !== todayDayIdx) continue;
+    const task = tasks.find(t => t.id === blk.taskId);
+    if (!task) continue;
+
+    const startHour = SLOT_START + Math.floor(blk.startSlot / 2);
+    const startMin  = (blk.startSlot % 2) * 30;
+    const notifTime = new Date();
+    notifTime.setHours(startHour, startMin, 0, 0);
+    const delay = notifTime.getTime() - Date.now();
+    if (delay <= 0) continue;
+
+    const hh = String(startHour).padStart(2, '0');
+    const mm = String(startMin).padStart(2, '0');
+    items.push({
+      delay,
+      title: `📅 ${task.name}の時間だよ！`,
+      body:  `${hh}:${mm}〜 （${fmtSlots(getEffectiveSlots(blk))}）`,
+      tag:   `plan-${blk.id}`,
+    });
+  }
+
+  navigator.serviceWorker.ready.then(reg => {
+    reg.active?.postMessage({ type: 'SCHEDULE_NOTIFICATIONS', items });
+  });
+  console.log(`[notif] Scheduled ${items.length} notifications for today`);
+}
+
+async function toggleNotification(enabled) {
+  if (enabled) {
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      document.getElementById('notif-toggle').checked = false;
+      updateNotifStatusText('通知が許可されていません。ブラウザの設定を確認してください。');
+      return;
+    }
+    localStorage.setItem('plan_notif_enabled', '1');
+    scheduleNotifications();
+    updateNotifStatusText('通知ON：今日のブロック開始時刻に通知します');
+  } else {
+    localStorage.removeItem('plan_notif_enabled');
+    navigator.serviceWorker.ready.then(reg => {
+      reg.active?.postMessage({ type: 'CANCEL_NOTIFICATIONS' });
+    });
+    updateNotifStatusText('通知OFF');
+  }
+}
+
+function updateNotifStatusText(msg) {
+  const el = document.getElementById('notif-status-text');
+  if (el) el.textContent = msg;
+}
+
+function openSettings() {
+  document.getElementById('share-id-display').textContent = shareId || '（生成中）';
+  document.getElementById('share-id-input').value = '';
+  setSyncStatus(_syncOk);
+  // 通知トグルの状態を反映
+  const enabled = !!localStorage.getItem('plan_notif_enabled');
+  const toggle  = document.getElementById('notif-toggle');
+  if (toggle) toggle.checked = enabled && Notification.permission === 'granted';
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  if (perm === 'denied') {
+    updateNotifStatusText('通知がブロックされています。ブラウザの設定から許可してください。');
+  } else if (perm === 'granted' && enabled) {
+    const todaySat    = getSaturdayOfWeek(new Date());
+    const wk          = weekKey(todaySat);
+    const todayDayIdx = (new Date().getDay() + 1) % 7;
+    const count = getBlocks(wk).filter(b => b.day === todayDayIdx).length;
+    updateNotifStatusText(`通知ON：今日のブロック ${count} 件を監視中`);
+  } else {
+    updateNotifStatusText('チェックをONにすると、ブロックの開始時刻に通知が届きます');
+  }
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
+registerSW();
 load();
 render();
+scheduleNotifications();
 </script>
 </body>
 </html>
