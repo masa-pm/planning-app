@@ -6,6 +6,20 @@
 <title>週間プランナー</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+const _planApp = firebase.initializeApp({
+  apiKey: 'AIzaSyDZhSzqZ4pt6HZ3PeEzeYo-kd_3wh6m7Eo',
+  authDomain: 'my-weather-app-77971.firebaseapp.com',
+  projectId: 'my-weather-app-77971',
+  storageBucket: 'my-weather-app-77971.firebasestorage.app',
+  messagingSenderId: '896788626272',
+  appId: '1:896788626272:web:af4c8a6eca51a036d7fc05',
+}, 'planning');
+const _planDb = firebase.firestore(_planApp);
+</script>
 <style>
 :root {
   --accent: #FF8F00;
@@ -86,6 +100,56 @@ body {
   flex-shrink: 0;
 }
 .copy-btn:hover { background: rgba(255,255,255,0.38); }
+.settings-btn {
+  background: rgba(255,255,255,0.22);
+  border: none;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.settings-btn:hover { background: rgba(255,255,255,0.38); }
+.share-id-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #F5F5F5;
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+.share-id-text {
+  flex: 1;
+  font-family: monospace;
+  font-size: 13px;
+  letter-spacing: 1px;
+  word-break: break-all;
+  color: #333;
+}
+.sync-status {
+  font-size: 11px;
+  color: #9E9E9E;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9E9E9E;
+  display: inline-block;
+}
+.sync-dot.ok { background: #66BB6A; }
+.sync-dot.err { background: #EF5350; }
 
 /* ── Layout ── */
 .main { display: flex; flex: 1; overflow: hidden; }
@@ -469,6 +533,7 @@ body {
     <button class="nav-btn" onclick="changeWeek(1)">次の週 ▶</button>
   </div>
   <button class="copy-btn" onclick="copyPrevWeek()">📋 前週コピー</button>
+  <button class="settings-btn" onclick="openSettings()" title="設定">⚙️</button>
 </header>
 
 <div class="main">
@@ -498,6 +563,32 @@ body {
     <label class="form-label">色</label>
     <div class="color-picker" id="color-picker"></div>
     <div class="modal-actions" id="task-modal-actions"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settings-modal" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-title">⚙️ 設定・データ共有</div>
+    <label class="form-label">共有ID <span style="font-weight:400;color:#999">（PCとスマホを同期するID）</span></label>
+    <div class="share-id-box">
+      <div class="share-id-text" id="share-id-display"></div>
+      <button class="btn btn-ghost" onclick="copyShareId()" style="flex-shrink:0;font-size:12px;padding:6px 10px">📋 コピー</button>
+    </div>
+    <div class="sync-status" id="sync-status">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-status-text">同期中...</span>
+    </div>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #EEE">
+      <label class="form-label">別のIDを入力 <span style="font-weight:400;color:#999">（スマホ側でPCのIDを貼り付け）</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="share-id-input" placeholder="共有IDを貼り付け" style="margin:0;flex:1;font-family:monospace">
+        <button class="btn btn-primary" onclick="applyShareId()" style="flex-shrink:0">適用</button>
+      </div>
+      <p style="font-size:11px;color:#999;margin-top:6px">※ 適用するとこのIDのデータに切り替わります</p>
+    </div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeSettings()">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -567,23 +658,146 @@ let editingCategoryId = null;
 let modalSlots       = 2;
 let modalColor       = COLORS[0];
 
+// ── Sync (Firestore) ──────────────────────────────────────────────────────────
+let shareId      = '';
+let _unsubscribe = null;
+let _fsWriteTimer = null;
+let _lastFsWrite  = 0;
+let _syncOk       = false;
+
+function genShareId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  return Array.from({length: 20}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function initSync() {
+  if (!shareId) {
+    shareId = localStorage.getItem('plan_shareId') || '';
+    if (!shareId) {
+      shareId = genShareId();
+      localStorage.setItem('plan_shareId', shareId);
+    }
+  }
+  if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+  _unsubscribe = _planDb.collection('planning').doc(shareId).onSnapshot(snap => {
+    setSyncStatus(true);
+    if (!snap.exists) return;
+    if (Date.now() - _lastFsWrite < 3000) return; // skip echo of our own write
+    const d = snap.data();
+    if (!d || !d.tasks) return;
+    tasks      = d.tasks      || [...DEFAULT_TASKS];
+    categories = d.categories || [...DEFAULT_CATEGORIES];
+    allWeeks   = d.weeks      || {};
+    migrate();
+    localStorage.setItem('plan_tasks',      JSON.stringify(tasks));
+    localStorage.setItem('plan_categories', JSON.stringify(categories));
+    localStorage.setItem('plan_weeks',      JSON.stringify(allWeeks));
+    render();
+  }, () => setSyncStatus(false));
+}
+
+function setSyncStatus(ok) {
+  _syncOk = ok;
+  const dot  = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-status-text');
+  if (!dot) return;
+  if (ok) {
+    dot.className  = 'sync-dot ok';
+    text.textContent = '同期中（接続OK）';
+  } else {
+    dot.className  = 'sync-dot err';
+    text.textContent = 'オフライン（ローカル保存中）';
+  }
+}
+
+function scheduleFsWrite() {
+  clearTimeout(_fsWriteTimer);
+  _fsWriteTimer = setTimeout(fsWrite, 600);
+}
+
+async function fsWrite() {
+  if (!shareId) return;
+  try {
+    _lastFsWrite = Date.now();
+    await _planDb.collection('planning').doc(shareId).set({
+      tasks, categories, weeks: allWeeks, updatedAt: Date.now(),
+    });
+    setSyncStatus(true);
+  } catch(e) {
+    console.warn('[sync] write failed:', e);
+    setSyncStatus(false);
+  }
+}
+
+// ── Settings modal ────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('share-id-display').textContent = shareId || '（生成中）';
+  document.getElementById('share-id-input').value = '';
+  setSyncStatus(_syncOk);
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
+
+function copyShareId() {
+  if (!shareId) return;
+  navigator.clipboard.writeText(shareId).then(() => {
+    showHint('共有IDをコピーしました！');
+  }).catch(() => {
+    prompt('IDをコピーしてください:', shareId);
+  });
+}
+
+async function applyShareId() {
+  const newId = document.getElementById('share-id-input').value.trim();
+  if (!newId || newId.length < 10) { showHint('IDが短すぎます', true); return; }
+  if (!confirm(`ID「${newId}」に切り替えますか？\n現在のデータは上書きされます。`)) return;
+
+  if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+  shareId = newId;
+  localStorage.setItem('plan_shareId', shareId);
+
+  try {
+    const snap = await _planDb.collection('planning').doc(shareId).get();
+    if (snap.exists) {
+      const d = snap.data();
+      tasks      = d.tasks      || [...DEFAULT_TASKS];
+      categories = d.categories || [...DEFAULT_CATEGORIES];
+      allWeeks   = d.weeks      || {};
+      migrate();
+      localStorage.setItem('plan_tasks',      JSON.stringify(tasks));
+      localStorage.setItem('plan_categories', JSON.stringify(categories));
+      localStorage.setItem('plan_weeks',      JSON.stringify(allWeeks));
+    }
+  } catch(e) { console.warn('[sync] load after ID change failed:', e); }
+
+  initSync();
+  render();
+  closeSettings();
+  showHint('IDを切り替えました！');
+}
+
 // ── Storage ───────────────────────────────────────────────────────────────────
+function migrate() {
+  const firstCatId = categories[0]?.id || 'cat-other';
+  for (const t of tasks) {
+    if (!t.system && !t.subject && !t.categoryId) t.categoryId = firstCatId;
+  }
+}
+
 function load() {
   try {
     tasks      = JSON.parse(localStorage.getItem('plan_tasks')      || 'null') || [...DEFAULT_TASKS];
     categories = JSON.parse(localStorage.getItem('plan_categories') || 'null') || [...DEFAULT_CATEGORIES];
     allWeeks   = JSON.parse(localStorage.getItem('plan_weeks')      || '{}');
-    // Migrate old tasks that have subject:null but no categoryId
-    const firstCatId = categories[0]?.id || 'cat-other';
-    for (const t of tasks) {
-      if (!t.system && !t.subject && !t.categoryId) t.categoryId = firstCatId;
-    }
+    migrate();
   } catch { tasks = [...DEFAULT_TASKS]; categories = [...DEFAULT_CATEGORIES]; allWeeks = {}; }
+  initSync();
 }
 function save() {
   localStorage.setItem('plan_tasks',      JSON.stringify(tasks));
   localStorage.setItem('plan_categories', JSON.stringify(categories));
   localStorage.setItem('plan_weeks',      JSON.stringify(allWeeks));
+  scheduleFsWrite();
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
