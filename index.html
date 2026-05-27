@@ -655,6 +655,7 @@ let dragBlockWk      = null;
 let resizeState      = null;
 let editingTask      = null;
 let editingCategoryId = null;
+let editingSubject   = null;
 let modalSlots       = 2;
 let modalColor       = COLORS[0];
 
@@ -909,11 +910,13 @@ function renderPanel() {
   // ── 教科別（課題）セクション ──
   for (const [subj, meta] of Object.entries(SUBJECTS)) {
     const list = tasks.filter(t => t.subject === subj && !placedIds.has(t.id));
-    if (!list.length) continue;
-    html += `<div class="section-label" style="color:${meta.color}">${subj}</div>`;
+    html += `<div class="section-header">
+      <span class="section-label" style="color:${meta.color};padding:0">${subj}</span>
+    </div>`;
     for (const task of list) {
       html += taskCardHtml(task, meta.light, meta.color, meta.color);
     }
+    html += `<button class="add-task-btn" style="margin-top:2px;border-color:${meta.color};color:${meta.color}" onclick="openTaskModal(null,null,'${subj}')">＋ 追加</button>`;
   }
 
   // ── カスタムカテゴリセクション ──
@@ -1217,13 +1220,16 @@ function openCatMenu(catId) {
 }
 
 // ── Task modal ────────────────────────────────────────────────────────────────
-function openTaskModal(taskId, catId = null) {
+function openTaskModal(taskId, catId = null, subject = null) {
   editingTask = taskId;
+  editingSubject = taskId ? (tasks.find(t => t.id === taskId)?.subject ?? null) : subject;
   editingCategoryId = taskId
-    ? (tasks.find(t => t.id === taskId)?.categoryId ?? categories[0]?.id)
-    : (catId ?? categories[0]?.id);
+    ? (tasks.find(t => t.id === taskId)?.categoryId ?? null)
+    : (catId ?? (subject ? null : categories[0]?.id));
   const task = taskId ? tasks.find(t => t.id === taskId) : null;
-  document.getElementById('task-modal-title').textContent = task ? 'タスクを編集' : 'タスクを追加';
+  document.getElementById('task-modal-title').textContent = task
+    ? 'タスクを編集'
+    : (editingSubject ? `${editingSubject}に追加` : 'タスクを追加');
   document.getElementById('task-name-input').value = task?.name || '';
   modalSlots = task?.slots || 2;
   modalColor = task?.color || COLORS[0];
@@ -1265,7 +1271,7 @@ function saveTask() {
     const task = tasks.find(t => t.id === editingTask);
     if (task) { task.name = name; task.slots = modalSlots; task.color = modalColor; }
   } else {
-    tasks.push({ id: uid(), name, color: modalColor, slots: modalSlots, system: false, subject: null, categoryId: editingCategoryId });
+    tasks.push({ id: uid(), name, color: modalColor, slots: modalSlots, system: false, subject: editingSubject, categoryId: editingSubject ? null : editingCategoryId });
   }
   save(); closeTaskModal(); render();
 }
